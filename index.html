@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="my">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#42ad50">
+<title>Match Board</title>
+<style>
+:root{--green:#43ad50;--dark:#292929;--panel:#a5a5a5;--tile:#626262;--white:#fff}
+*{box-sizing:border-box}
+body{margin:0;background:#f4f4f4;color:#fff;font-family:Arial,"Noto Sans Myanmar",sans-serif}
+.top{height:58px;background:var(--green);display:flex;align-items:center;justify-content:space-between;padding:0 16px;font-size:19px}
+.brandbar{height:68px;background:#303030;display:flex;align-items:center;gap:14px;padding:0 16px;box-shadow:0 2px 5px #0003}
+.brand{font-size:27px;font-weight:bold;flex:1}.brand span{color:var(--green)}
+button,input,select{font:inherit}
+button{border:0;cursor:pointer}
+.iconbtn{background:transparent;color:white;font-size:24px;padding:8px}
+main{max-width:850px;margin:auto;padding:10px 12px 90px}
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:5px 0 12px;color:#222}
+.toolbar label{font-size:14px;font-weight:bold}
+.toolbar input[type=date]{padding:9px;border:1px solid #bbb;border-radius:7px;background:#fff}
+.action{padding:9px 12px;border-radius:7px;background:var(--green);color:#fff;font-weight:bold}
+.action.secondary{background:#555}.action.danger{background:#c43d3d}
+.status{color:#444;font-size:13px;margin-left:auto}
+.match{background:var(--panel);border-radius:9px;padding:12px 12px 20px;margin:10px 0 14px}
+.match-date{font-size:18px;margin:0 0 10px;color:#fff}
+.teams{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.team{min-height:64px;background:var(--tile);border-radius:10px;display:flex;align-items:center;justify-content:center;padding:8px;position:relative}
+.team input{width:100%;min-width:0;border:0;background:transparent;color:#fff;text-align:center;font-size:19px;outline:none}
+.team input::placeholder{color:#ddd}
+.odd{position:absolute;right:7px;top:50%;transform:translateY(-50%);background:#009b52;color:#fff;border-radius:22px;padding:8px 10px;font-size:16px;min-width:54px;text-align:center}
+.team.has-odd input{padding-right:64px}
+.market{display:grid;grid-template-columns:1fr 82px 1fr;gap:3px;margin-top:4px}
+.market input{height:72px;border:0;border-radius:9px;background:var(--tile);color:#fff;text-align:center;font-size:18px;min-width:0;width:100%;padding:4px}
+.market input::placeholder{color:#fff;opacity:1}
+.market .line{background:#009b52;font-size:18px}
+.card-actions{display:flex;justify-content:flex-end;margin-top:8px;gap:6px}
+.smallbtn{font-size:12px;padding:6px 9px;border-radius:6px;background:#777;color:#fff}
+.addbar{display:flex;gap:8px;margin:12px 0}
+.addbar button{flex:1;padding:13px;border-radius:8px;font-weight:bold}
+.empty{text-align:center;color:#666;padding:30px 10px;background:#fff;border-radius:8px}
+.footer{position:fixed;bottom:0;left:0;right:0;background:#292929;padding:10px 12px calc(10px + env(safe-area-inset-bottom));display:flex;gap:8px;align-items:center;z-index:5}
+.footer input{flex:1;min-width:0;height:48px;border:2px solid var(--green);border-radius:6px;padding:8px}
+.footer button{height:48px;padding:0 15px;border-radius:7px;background:var(--green);color:white;font-weight:bold}
+@media(max-width:430px){.team input{font-size:16px}.market{grid-template-columns:1fr 72px 1fr}.market input{font-size:16px}.odd{font-size:14px;min-width:48px}.brand{font-size:24px}}
+</style>
+</head>
+<body>
+<div class="top"><span id="clock">Match Board</span><span>📶 4G　▰</span></div>
+<header class="brandbar">
+ <button class="iconbtn" id="prevDay" aria-label="Previous day">‹</button>
+ <div class="brand"><span>555</span> Match Board</div>
+ <button class="iconbtn" id="nextDay" aria-label="Next day">›</button>
+ <button class="iconbtn" id="backupBtn" title="Backup">⇩</button>
+</header>
+<main>
+ <div class="toolbar">
+  <label for="day">ရက်စွဲ</label><input type="date" id="day">
+  <button class="action secondary" id="todayBtn">ယနေ့</button>
+  <button class="action secondary" id="copyDayBtn">နေ့ကူး</button>
+  <span class="status" id="saveStatus">Auto Save</span>
+ </div>
+ <div id="matches"></div>
+ <div class="addbar">
+  <button class="action" id="addMatch">＋ ပွဲအသစ်ထည့်ရန်</button>
+  <button class="action secondary" id="exportBtn">နေ့စာရင်း Export</button>
+ </div>
+ <div style="color:#666;font-size:12px;text-align:center;margin:12px 0">ပြင်ဆင်သမျှကို ဒီဖုန်း / Browser ထဲတွင် အလိုအလျောက် သိမ်းဆည်းပါသည်။</div>
+</main>
+<div class="footer">
+ <button id="bottomAdd">＋ ပွဲထည့်</button>
+ <button id="clearDay" style="background:#555">ဒီနေ့ဖျက်</button>
+</div>
+<script>
+const $=s=>document.querySelector(s);
+const storeKey='match-board-v1';
+let all={};
+let activeDate=new Date().toLocaleDateString('en-CA');
+try{all=JSON.parse(localStorage.getItem(storeKey)||'{}')||{}}catch(e){all={}}
+function blankMatch(){return {league:'UEFA European U-19 Football Championship',home:'',away:'',homeOdd:'',awayOdd:'',marketHome:'ဂိုးပေါ်',line:'3',marketAway:'ဂိုးအောက်'}}
+function dayMatches(){return all[activeDate]||[]}
+function save(){all[activeDate]=dayMatches();localStorage.setItem(storeKey,JSON.stringify(all));$('#saveStatus').textContent='သိမ်းပြီး ✓';setTimeout(()=>$('#saveStatus').textContent='Auto Save',1200)}
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function render(){
+ $('#day').value=activeDate;let list=dayMatches();let root=$('#matches');root.innerHTML='';
+ if(!list.length){root.innerHTML='<div class="empty">ဒီရက်အတွက် ပွဲမရှိသေးပါ။<br>「ပွဲအသစ်ထည့်ရန်」 ကိုနှိပ်ပါ။</div>';return}
+ list.forEach((m,i)=>{
+  let card=document.createElement('section');card.className='match';
+  card.innerHTML=`
+   <div class="match-date"><input aria-label="League name" data-k="league" data-i="${i}" value="${esc(m.league)}" style="width:100%;background:transparent;border:0;color:white;font-size:18px;outline:none"></div>
+   <div class="teams">
+    <div class="team ${m.homeOdd?'has-odd':''}"><input data-k="home" data-i="${i}" placeholder="Home Team" value="${esc(m.home)}"><input class="odd" data-k="homeOdd" data-i="${i}" placeholder="ကြေး" value="${esc(m.homeOdd)}"></div>
+    <div class="team ${m.awayOdd?'has-odd':''}"><input data-k="away" data-i="${i}" placeholder="Away Team" value="${esc(m.away)}"><input class="odd" data-k="awayOdd" data-i="${i}" placeholder="ကြေး" value="${esc(m.awayOdd)}"></div>
+   </div>
+   <div class="market">
+    <input data-k="marketHome" data-i="${i}" value="${esc(m.marketHome)}" placeholder="ဘယ်ဘက်စာသား">
+    <input class="line" data-k="line" data-i="${i}" value="${esc(m.line)}" placeholder="ဂိုးကြေး">
+    <input data-k="marketAway" data-i="${i}" value="${esc(m.marketAway)}" placeholder="ညာဘက်စာသား">
+   </div>
+   <div class="card-actions"><button class="smallbtn" data-up="${i}">↑ အပေါ်</button><button class="smallbtn" data-down="${i}">↓ အောက်</button><button class="smallbtn" data-dup="${i}">မိတ္တူ</button><button class="smallbtn" data-del="${i}" style="background:#bd4141">ဖျက်</button></div>`;
+  root.appendChild(card);
+ });
+}
+$('#matches').addEventListener('input',e=>{
+ let el=e.target;if(!el.dataset.k)return;let i=+el.dataset.i,k=el.dataset.k;dayMatches()[i][k]=el.value;
+ if(k==='homeOdd'||k==='awayOdd'){let team=el.closest('.team');team.classList.toggle('has-odd',!!el.value)}
+ save();
+});
+$('#matches').addEventListener('click',e=>{
+ let t=e.target;let i;
+ if(t.dataset.del!==undefined){i=+t.dataset.del;if(confirm('ဒီပွဲကို ဖျက်မှာ သေချာပါသလား?')){dayMatches().splice(i,1);save();render()}}
+ if(t.dataset.dup!==undefined){i=+t.dataset.dup;dayMatches().splice(i+1,0,JSON.parse(JSON.stringify(dayMatches()[i])));save();render()}
+ if(t.dataset.up!==undefined){i=+t.dataset.up;if(i>0){let a=dayMatches();[a[i-1],a[i]]=[a[i],a[i-1]];save();render()}}
+ if(t.dataset.down!==undefined){i=+t.dataset.down;let a=dayMatches();if(i<a.length-1){[a[i+1],a[i]]=[a[i],a[i+1]];save();render()}}
+});
+function setDate(d){activeDate=d;render()}
+$('#day').addEventListener('change',e=>setDate(e.target.value));
+function shift(n){let d=new Date(activeDate+'T12:00:00');d.setDate(d.getDate()+n);setDate(d.toLocaleDateString('en-CA'))}
+$('#prevDay').onclick=()=>shift(-1);$('#nextDay').onclick=()=>shift(1);
+$('#todayBtn').onclick=()=>setDate(new Date().toLocaleDateString('en-CA'));
+function add(){dayMatches().push(blankMatch());save();render();window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'})}
+$('#addMatch').onclick=add;$('#bottomAdd').onclick=add;
+$('#clearDay').onclick=()=>{if(confirm(activeDate+' ရက်နေ့စာရင်းအားလုံး ဖျက်မှာ သေချာပါသလား?')){all[activeDate]=[];save();render()}};
+$('#copyDayBtn').onclick=()=>{let from=prompt('ဘယ်ရက်နေ့က စာရင်းကို ကူးယူမလဲ? (YYYY-MM-DD)');if(!from||!all[from]){alert('အဲဒီရက်မှာ စာရင်းမတွေ့ပါ။');return}if(!confirm('လက်ရှိရက်နေ့စာရင်းကို အစားထိုးကူးယူမလား?'))return;all[activeDate]=JSON.parse(JSON.stringify(all[from]));save();render()};
+function download(name,data,type='application/json'){let blob=new Blob([data],{type});let a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();URL.revokeObjectURL(a.href)}
+$('#exportBtn').onclick=()=>download('matches-'+activeDate+'.json',JSON.stringify({[activeDate]:dayMatches()},null,2));
+$('#backupBtn').onclick=()=>download('match-board-backup.json',JSON.stringify(all,null,2));
+$('#clock').textContent=new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+render();
+</script>
+</body></html>
